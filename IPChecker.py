@@ -1,5 +1,12 @@
 import requests
 import os
+import csv
+import re
+
+
+def is_valid_ip(ip_string):
+    ip_pattern = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
+    return ip_pattern.match(ip_string)
 
 
 def check_ip(api_key, ip_address, max_age=90):
@@ -124,26 +131,40 @@ def main():
         print("API key is required. Exiting.")
         return
 
-    filename = input("Enter the name of the .txt file with IP addresses (e.g., ips.txt): ").strip()
+    filename = input("Enter the name of the .txt or .csv file with IP addresses: ").strip()
     if not os.path.exists(filename):
         print(f"Error: The file '{filename}' was not found.")
         return
 
+    ips_to_check = set()
     try:
-        with open(filename, 'r') as f:
-            ips_to_check = set(line.strip() for line in f if line.strip())
+        if filename.lower().endswith('.csv'):
+            with open(filename, 'r', newline='', encoding='utf-8') as f:
+                reader = csv.reader(f)
+                for row in reader:
+                    for cell in row:
+                        # Clean up the cell and check if it looks like an IP
+                        potential_ip = cell.strip()
+                        if is_valid_ip(potential_ip):
+                            ips_to_check.add(potential_ip)
+        else:  # Assume .txt or other plain text format
+            with open(filename, 'r') as f:
+                for line in f:
+                    potential_ip = line.strip()
+                    if is_valid_ip(potential_ip):
+                        ips_to_check.add(potential_ip)
     except Exception as e:
         print(f"Error reading file '{filename}': {e}")
         return
 
     if not ips_to_check:
-        print("No IP addresses found in the file.")
+        print("No valid IP addresses found in the file.")
         return
 
     print(f"\nFound {len(ips_to_check)} unique IP(s) to check. Querying API...")
 
     all_results = []
-    for ip in ips_to_check:
+    for ip in sorted(list(ips_to_check)):
         print(f"  - Checking {ip}...")
         data = check_ip(api_key, ip)
         if data:
