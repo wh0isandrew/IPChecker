@@ -66,6 +66,8 @@ def generate_html_report(results_list):
             width: 320px; 
             box-shadow: 0 4px 8px rgba(0,0,0,0.3);
             transition: transform 0.2s ease-in-out;
+            display: flex;
+            flex-direction: column;
         }
         .ip-card:hover {
             transform: translateY(-5px);
@@ -79,6 +81,10 @@ def generate_html_report(results_list):
         .ip-card p { 
             margin: 8px 0;
             line-height: 1.5;
+        }
+        .score-container {
+            margin-top: auto;
+            padding-top: 10px;
         }
         .score { 
             font-weight: bold;
@@ -110,15 +116,23 @@ def generate_html_report(results_list):
         usage_type = data.get('usageType', 'N/A')
         total_reports = data.get('totalReports', 'N/A')
 
+        last_reported_raw = data.get('lastReportedAt')
+        last_reported = last_reported_raw.split('T')[0] if last_reported_raw else 'Never'
+
         html_content += f"""
         <div class="ip-card">
-            <h2>{ip_address}</h2>
-            <p><strong>Country:</strong> {country}</p>
-            <p><strong>ISP:</strong> {isp}</p>
-            <p><strong>Domain:</strong> {domain}</p>
-            <p><strong>Usage Type:</strong> {usage_type}</p>
-            <p><strong>Total Reports:</strong> {total_reports}</p>
-            <p><strong>Abuse Score:</strong> <span class="score {score_class}">{score}%</span></p>
+            <div>
+                <h2>{ip_address}</h2>
+                <p><strong>Country:</strong> {country}</p>
+                <p><strong>ISP:</strong> {isp}</p>
+                <p><strong>Domain:</strong> {domain}</p>
+                <p><strong>Usage Type:</strong> {usage_type}</p>
+                <p><strong>Total Reports:</strong> {total_reports}</p>
+                <p><strong>Last Reported:</strong> {last_reported}</p>
+            </div>
+            <div class="score-container">
+                <p><strong>Abuse Score:</strong> <span class="score {score_class}">{score}%</span></p>
+            </div>
         </div>
         """
     html_content += "</div></body></html>"
@@ -143,11 +157,10 @@ def main():
                 reader = csv.reader(f)
                 for row in reader:
                     for cell in row:
-                        # Clean up the cell and check if it looks like an IP
                         potential_ip = cell.strip()
                         if is_valid_ip(potential_ip):
                             ips_to_check.add(potential_ip)
-        else:  # Assume .txt or other plain text format
+        else:
             with open(filename, 'r') as f:
                 for line in f:
                     potential_ip = line.strip()
@@ -173,8 +186,20 @@ def main():
     print("Finished checking all IPs.")
 
     if all_results:
+        print("Sorting results...")
+        all_results.sort(
+            key=lambda item: (
+                item.get('abuseConfidenceScore', 0),
+                item.get('totalReports', 0),
+                item.get('lastReportedAt', '')
+            ),
+            reverse=True
+        )
+
         output_filename = input("Enter the output filename for the HTML report (e.g., report.html): ").strip()
-        if not output_filename.endswith('.html'):
+        if not output_filename:
+            output_filename = 'abuse_report.html'
+        elif not output_filename.lower().endswith('.html'):
             output_filename += '.html'
 
         print(f"Generating HTML report...")
